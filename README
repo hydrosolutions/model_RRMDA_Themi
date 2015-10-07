@@ -1,0 +1,21 @@
+Module for coupling of rainfall runoff model `Themi` to openDA.
+
+Copyright (C) 2015 hydrosolutions ltd. Zurich, Switzerland
+
+This file is part of iMoMo-Matlab. iMoMo-Matlab is a free software and
+licensed under the Free Software Foundation. See LICENSE for details. The
+openDA distribution runs under the GNU lesser general public license version 3
+(see license.txt).
+
+
+Installation guide for mac:
+- Copy the bin folder in this directory to your preferred folder 
+  (/Applications/openda/bin is recommended) of add the jar file model_RRMDA_Themi 
+  to your pre-existing openDA distribution. model_RRMDA_Themi has been compiled 
+  with release 2.2 of openDA. 
+- Open ~/.profile (not ~./bashrc as stated in the openDA installation guides. 
+  ~/.bashrc is not read automatically upon login). Add the following lines:
+      $ export OPENDADIR=<bindir>
+      $ . $OPENDADIR/setup_openda.sh 
+  <bindir> is the path to the bin openDA-bin directory where you stored the jar
+  files. For example /Application/openDA_2.2/bin/. 
