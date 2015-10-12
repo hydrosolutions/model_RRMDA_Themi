@@ -1,16 +1,10 @@
 package org.openda.model_RRMDA_Themi;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Set;
@@ -20,11 +14,9 @@ import org.openda.exchange.timeseries.TimeSeries;
 import org.openda.interfaces.IExchangeItem;
 import org.openda.interfaces.IPrevExchangeItem;
 
-import com.jmatio.io.MatFileFilter;
 import com.jmatio.io.MatFileReader;
 import com.jmatio.io.MatFileWriter;
 import com.jmatio.types.MLArray;
-import com.jmatio.types.MLChar;
 import com.jmatio.types.MLDouble;
 
 /**
@@ -45,9 +37,23 @@ import com.jmatio.types.MLDouble;
  * figured out in this wrapper. The file E.mat is written on a daily basis. For the 
  * current run yesterdays file is read, modified and stored again. Therefore, the 
  * time reference of the data can be read from the modified date of the file E.mat.
+ * This should also work if the file has been modified today. 
+ * <p>
+ * E.mat contains 100 replicates of the states, all perturbed. The matlab rainfall
+ * runoff model (RRM) uses the first 21 of them to compute stochastic model forecasts.
+ * A workaround is needed here to make RRM compatible. The first row (= the central 
+ * model) is read into exchange items. The rows containing the stochastic replicates
+ * of the central model are ignored because openDA accounts for them. When writing, 
+ * the wrapper copies the current replicate of E to the number of columns of E.mat 
+ * that have been read initially. Thereby it is assured that E.mat has the format it 
+ * needs to have to be read by RRMDA_Themi. A clean up routine is needed after each 
+ * call to openDA to copy the contents of E.mat (among others) in the openDA working 
+ * directories to the original E.mat such that the following routines in RRMDA_Themi 
+ * can run successfully. 
  *  
  * @author Beatrice Marti, hydrosolutions ltd., marti@hydrosolutions.ch
  *
+ * Copyright (c) 2015, hydrosolutions ltd.
  */
 public class Ewrapper implements IoObjectInterface {
 
@@ -56,8 +62,17 @@ public class Ewrapper implements IoObjectInterface {
 	File workingDir;
 	String configString;
 	String fileName = null;
+	int[] readDataDim = {0,0};
 	HashMap<String, TimeSeries> items = new LinkedHashMap<String, TimeSeries>();
-
+	HashMap<String, IExchangeItem> map = new HashMap<>();
+	String[] exchangeItemIDs = new String[] {"Q1","S1","G1","ETact1","a11","a21","a31","Smax1",
+			 								 "Q2","S2","G2","ETact2","a12","a22","a32","Smax2",
+											 "Q3","S3","G3","ETact3","a13","a23","a33","Smax3",
+											 "Q4","S4","G4","ETact4","a14","a24","a34","Smax4",
+											 "Q5","S5","G5","ETact5","a15","a25","a35","Smax5",
+											 "Q6","S6","G6","ETact6","a16","a26","a36","Smax6",
+											 "Q7","S7","G7","ETact7","a17","a27","a37","Smax7",
+											 "Q8","S8","G8","ETact8","a18","a28","a38","Smax8"};
 	
 	/**
 	 * Initialize the IoObject. Reads the content of a .mat file (fileName) in
@@ -98,7 +113,7 @@ public class Ewrapper implements IoObjectInterface {
 			
 			// Parse the MLArray to an array of doubles. E contains an ensemble of states 
 			// and parameters. We're interested here only in the central model: The first column.
-			int[] readDataDim = readData.getDimensions(); // e.g. [number of rows, number of columns] for 2D arrays. 
+			readDataDim = readData.getDimensions(); // e.g. [number of rows, number of columns] for 2D arrays. 
 			int readDataType = readData.getType();
 			if (readDataType != 6) {
 				throw new RuntimeException("Ewrapper.initialize(): input file " + file.getAbsolutePath() + 
@@ -126,526 +141,17 @@ public class Ewrapper implements IoObjectInterface {
 			
 			time[0] = refdate;
 			
+			TimeSeries temp;
 			// Store data in exchange items.
-			value[0] = values[0];
-			TimeSeries tsc1Q = new TimeSeries(time,value);
-			id = "Q1";
-			tsc1Q.setId(id);
-			this.items.put(id,tsc1Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c1Q = new TimeSeries(tsc1Q);
-			
-			value[0] = values[1];
-			TimeSeries tsc1S = new TimeSeries(time,value);
-			id = "S1";
-			tsc1S.setId(id);
-			this.items.put(id,tsc1S);
-			@SuppressWarnings("unused")
-			IExchangeItem c1S = new TimeSeries(tsc1S);
-			
-			value[0] = values[2];
-			TimeSeries tsc1G = new TimeSeries(time,value);
-			id = "G1";
-			tsc1G.setId(id);
-			this.items.put(id,tsc1G);
-			@SuppressWarnings("unused")
-			IExchangeItem c1G = new TimeSeries(tsc1G);
-			
-			value[0] = values[3];
-			TimeSeries tsc1ETact = new TimeSeries(time,value);
-			id = "ETact1";
-			tsc1ETact.setId(id);
-			this.items.put(id,tsc1ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c1ETact = new TimeSeries(tsc1ETact);
-			
-			value[0] = values[4];
-			TimeSeries tsc1a1 = new TimeSeries(time,value);
-			id = "a11";
-			tsc1a1.setId(id);
-			this.items.put(id,tsc1a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c1a1 = new TimeSeries(tsc1a1);
-			
-			value[0] = values[5];
-			TimeSeries tsc1a2 = new TimeSeries(time,value);
-			id = "a21";
-			tsc1a2.setId(id);
-			this.items.put(id,tsc1a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c1a2 = new TimeSeries(tsc1a2);
-			
-			value[0] = values[6];
-			TimeSeries tsc1a3 = new TimeSeries(time,value);
-			id = "a31";
-			tsc1a3.setId(id);
-			this.items.put(id,tsc1a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c1a3 = new TimeSeries(tsc1a3);
-
-			value[0] = values[7];
-			TimeSeries tsc1Smax = new TimeSeries(time,value);
-			id = "Smax1";
-			tsc1Smax.setId(id);
-			this.items.put(id,tsc1Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c1Smax = new TimeSeries(tsc1Smax);
-			
-			value[0] = values[8];
-			TimeSeries tsc2Q = new TimeSeries(time,value);
-			id = "Q2";
-			tsc2Q.setId(id);
-			this.items.put(id,tsc2Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c2Q = new TimeSeries(tsc2Q);
-			
-			value[0] = values[9];
-			TimeSeries tsc2S = new TimeSeries(time,value);
-			id = "S2";
-			tsc2S.setId(id);
-			this.items.put(id,tsc2S);
-			@SuppressWarnings("unused")
-			IExchangeItem c2S = new TimeSeries(tsc2S);
-			
-			value[0] = values[10];
-			TimeSeries tsc2G = new TimeSeries(time,value);
-			id = "G2";
-			tsc2G.setId(id);
-			this.items.put(id,tsc2G);
-			@SuppressWarnings("unused")
-			IExchangeItem c2G = new TimeSeries(tsc2G);
-			
-			value[0] = values[11];
-			TimeSeries tsc2ETact = new TimeSeries(time,value);
-			id = "ETact2";
-			tsc2ETact.setId(id);
-			this.items.put(id,tsc2ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c2ETact = new TimeSeries(tsc2ETact);
-			
-			value[0] = values[12];
-			TimeSeries tsc2a1 = new TimeSeries(time,value);
-			id = "a12";
-			tsc2a1.setId(id);
-			this.items.put(id,tsc2a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c2a1 = new TimeSeries(tsc2a1);
-			
-			value[0] = values[13];
-			TimeSeries tsc2a2 = new TimeSeries(time,value);
-			id = "a22";
-			tsc2a2.setId(id);
-			this.items.put(id,tsc2a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c2a2 = new TimeSeries(tsc2a2);
-			
-			value[0] = values[14];
-			TimeSeries tsc2a3 = new TimeSeries(time,value);
-			id = "a32";
-			tsc2a3.setId(id);
-			this.items.put(id,tsc2a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c2a3 = new TimeSeries(tsc2a3);
-
-			value[0] = values[15];
-			TimeSeries tsc2Smax = new TimeSeries(time,value);
-			id = "Smax2";
-			tsc2Smax.setId(id);
-			this.items.put(id,tsc2Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c2Smax = new TimeSeries(tsc2Smax);
-			
-			// 3rd subcatchment.
-			value[0] = values[16];
-			TimeSeries tsc3Q = new TimeSeries(time,value);
-			id = "Q3";
-			tsc3Q.setId(id);
-			this.items.put(id,tsc3Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c3Q = new TimeSeries(tsc3Q);
-			
-			value[0] = values[17];
-			TimeSeries tsc3S = new TimeSeries(time,value);
-			id = "S3";
-			tsc3S.setId(id);
-			this.items.put(id,tsc3S);
-			@SuppressWarnings("unused")
-			IExchangeItem c3S = new TimeSeries(tsc3S);
-			
-			value[0] = values[18];
-			TimeSeries tsc3G = new TimeSeries(time,value);
-			id = "G3";
-			tsc3G.setId(id);
-			this.items.put(id,tsc3G);
-			@SuppressWarnings("unused")
-			IExchangeItem c3G = new TimeSeries(tsc3G);
-			
-			value[0] = values[19];
-			TimeSeries tsc3ETact = new TimeSeries(time,value);
-			id = "ETact3";
-			tsc3ETact.setId(id);
-			this.items.put(id,tsc3ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c3ETact = new TimeSeries(tsc3ETact);
-			
-			value[0] = values[20];
-			TimeSeries tsc3a1 = new TimeSeries(time,value);
-			id = "a13";
-			tsc3a1.setId(id);
-			this.items.put(id,tsc3a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c3a1 = new TimeSeries(tsc3a1);
-			
-			value[0] = values[21];
-			TimeSeries tsc3a2 = new TimeSeries(time,value);
-			id = "a23";
-			tsc3a2.setId(id);
-			this.items.put(id,tsc3a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c3a2 = new TimeSeries(tsc3a2);
-			
-			value[0] = values[22];
-			TimeSeries tsc3a3 = new TimeSeries(time,value);
-			id = "a33";
-			tsc3a3.setId(id);
-			this.items.put(id,tsc3a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c3a3 = new TimeSeries(tsc3a3);
-
-			value[0] = values[23];
-			TimeSeries tsc3Smax = new TimeSeries(time,value);
-			id = "Smax3";
-			tsc3Smax.setId(id);
-			this.items.put(id,tsc3Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c3Smax = new TimeSeries(tsc3Smax);
-			
-			// 4th subcatchment.
-			value[0] = values[24];
-			TimeSeries tsc4Q = new TimeSeries(time,value);
-			id = "Q4";
-			tsc4Q.setId(id);
-			this.items.put(id,tsc4Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c4Q = new TimeSeries(tsc4Q);
-			
-			value[0] = values[25];
-			TimeSeries tsc4S = new TimeSeries(time,value);
-			id = "S4";
-			tsc4S.setId(id);
-			this.items.put(id,tsc4S);
-			@SuppressWarnings("unused")
-			IExchangeItem c4S = new TimeSeries(tsc4S);
-			
-			value[0] = values[26];
-			TimeSeries tsc4G = new TimeSeries(time,value);
-			id = "G4";
-			tsc4G.setId(id);
-			this.items.put(id,tsc4G);
-			@SuppressWarnings("unused")
-			IExchangeItem c4G = new TimeSeries(tsc4G);
-			
-			value[0] = values[27];
-			TimeSeries tsc4ETact = new TimeSeries(time,value);
-			id = "ETact4";
-			tsc4ETact.setId(id);
-			this.items.put(id,tsc4ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c4ETact = new TimeSeries(tsc4ETact);
-			
-			value[0] = values[28];
-			TimeSeries tsc4a1 = new TimeSeries(time,value);
-			id = "a14";
-			tsc4a1.setId(id);
-			this.items.put(id,tsc4a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c4a1 = new TimeSeries(tsc4a1);
-			
-			value[0] = values[29];
-			TimeSeries tsc4a2 = new TimeSeries(time,value);
-			id = "a24";
-			tsc4a2.setId(id);
-			this.items.put(id,tsc4a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c4a2 = new TimeSeries(tsc4a2);
-			
-			value[0] = values[30];
-			TimeSeries tsc4a3 = new TimeSeries(time,value);
-			id = "a34";
-			tsc4a3.setId(id);
-			this.items.put(id,tsc4a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c4a3 = new TimeSeries(tsc4a3);
-
-			value[0] = values[34];
-			TimeSeries tsc4Smax = new TimeSeries(time,value);
-			id = "Smax4";
-			tsc4Smax.setId(id);
-			this.items.put(id,tsc4Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c4Smax = new TimeSeries(tsc4Smax);
-			
-			// 5th subcatchment.
-			value[0] = values[32];
-			TimeSeries tsc5Q = new TimeSeries(time,value);
-			id = "Q5";
-			tsc5Q.setId(id);
-			this.items.put(id,tsc5Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c5Q = new TimeSeries(tsc5Q);
-			
-			value[0] = values[33];
-			TimeSeries tsc5S = new TimeSeries(time,value);
-			id = "S5";
-			tsc5S.setId(id);
-			this.items.put(id,tsc5S);
-			@SuppressWarnings("unused")
-			IExchangeItem c5S = new TimeSeries(tsc5S);
-			
-			value[0] = values[34];
-			TimeSeries tsc5G = new TimeSeries(time,value);
-			id = "G5";
-			tsc5G.setId(id);
-			this.items.put(id,tsc5G);
-			@SuppressWarnings("unused")
-			IExchangeItem c5G = new TimeSeries(tsc5G);
-			
-			value[0] = values[35];
-			TimeSeries tsc5ETact = new TimeSeries(time,value);
-			id = "ETact5";
-			tsc5ETact.setId(id);
-			this.items.put(id,tsc5ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c5ETact = new TimeSeries(tsc5ETact);
-			
-			value[0] = values[36];
-			TimeSeries tsc5a1 = new TimeSeries(time,value);
-			id = "a15";
-			tsc5a1.setId(id);
-			this.items.put(id,tsc5a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c5a1 = new TimeSeries(tsc5a1);
-			
-			value[0] = values[37];
-			TimeSeries tsc5a2 = new TimeSeries(time,value);
-			id = "a25";
-			tsc5a2.setId(id);
-			this.items.put(id,tsc5a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c5a2 = new TimeSeries(tsc5a2);
-			
-			value[0] = values[38];
-			TimeSeries tsc5a3 = new TimeSeries(time,value);
-			id = "a35";
-			tsc5a3.setId(id);
-			this.items.put(id,tsc5a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c5a3 = new TimeSeries(tsc5a3);
-
-			value[0] = values[39];
-			TimeSeries tsc5Smax = new TimeSeries(time,value);
-			id = "Smax5";
-			tsc5Smax.setId(id);
-			this.items.put(id,tsc5Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c5Smax = new TimeSeries(tsc5Smax);
-			
-			// 6th subcatchment
-			value[0] = values[40];
-			TimeSeries tsc6Q = new TimeSeries(time,value);
-			id = "Q6";
-			tsc6Q.setId(id);
-			this.items.put(id,tsc6Q);
-			@SuppressWarnings("unused")
-			IExchangeItem c6Q = new TimeSeries(tsc6Q);
-			
-			value[0] = values[46];
-			TimeSeries tsc6S = new TimeSeries(time,value);
-			id = "S6";
-			tsc6S.setId(id);
-			this.items.put(id,tsc6S);
-			@SuppressWarnings("unused")
-			IExchangeItem c6S = new TimeSeries(tsc6S);
-			
-			value[0] = values[42];
-			TimeSeries tsc6G = new TimeSeries(time,value);
-			id = "G6";
-			tsc6G.setId(id);
-			this.items.put(id,tsc6G);
-			@SuppressWarnings("unused")
-			IExchangeItem c6G = new TimeSeries(tsc6G);
-			
-			value[0] = values[43];
-			TimeSeries tsc6ETact = new TimeSeries(time,value);
-			id = "ETact6";
-			tsc6ETact.setId(id);
-			this.items.put(id,tsc6ETact);
-			@SuppressWarnings("unused")
-			IExchangeItem c6ETact = new TimeSeries(tsc6ETact);
-			
-			value[0] = values[44];
-			TimeSeries tsc6a1 = new TimeSeries(time,value);
-			id = "a16";
-			tsc6a1.setId(id);
-			this.items.put(id,tsc6a1);
-			@SuppressWarnings("unused")
-			IExchangeItem c6a1 = new TimeSeries(tsc6a1);
-			
-			value[0] = values[45];
-			TimeSeries tsc6a2 = new TimeSeries(time,value);
-			id = "a26";
-			tsc6a2.setId(id);
-			this.items.put(id,tsc6a2);
-			@SuppressWarnings("unused")
-			IExchangeItem c6a2 = new TimeSeries(tsc6a2);
-			
-			value[0] = values[46];
-			TimeSeries tsc6a3 = new TimeSeries(time,value);
-			id = "a36";
-			tsc6a3.setId(id);
-			this.items.put(id,tsc6a3);
-			@SuppressWarnings("unused")
-			IExchangeItem c6a3 = new TimeSeries(tsc6a3);
-
-			value[0] = values[47];
-			TimeSeries tsc6Smax = new TimeSeries(time,value);
-			id = "Smax6";
-			tsc6Smax.setId(id);
-			this.items.put(id,tsc6Smax);
-			@SuppressWarnings("unused")
-			IExchangeItem c6Smax = new TimeSeries(tsc6Smax);
-			
-			// 7th subcatchment
-						value[0] = values[48];
-						TimeSeries tsc7Q = new TimeSeries(time,value);
-						id = "Q7";
-						tsc7Q.setId(id);
-						this.items.put(id,tsc7Q);
-						@SuppressWarnings("unused")
-						IExchangeItem c7Q = new TimeSeries(tsc7Q);
-						
-						value[0] = values[49];
-						TimeSeries tsc7S = new TimeSeries(time,value);
-						id = "S7";
-						tsc7S.setId(id);
-						this.items.put(id,tsc7S);
-						@SuppressWarnings("unused")
-						IExchangeItem c7S = new TimeSeries(tsc7S);
-						
-						value[0] = values[50];
-						TimeSeries tsc7G = new TimeSeries(time,value);
-						id = "G7";
-						tsc7G.setId(id);
-						this.items.put(id,tsc7G);
-						@SuppressWarnings("unused")
-						IExchangeItem c7G = new TimeSeries(tsc7G);
-						
-						value[0] = values[51];
-						TimeSeries tsc7ETact = new TimeSeries(time,value);
-						id = "ETact7";
-						tsc7ETact.setId(id);
-						this.items.put(id,tsc7ETact);
-						@SuppressWarnings("unused")
-						IExchangeItem c7ETact = new TimeSeries(tsc7ETact);
-						
-						value[0] = values[52];
-						TimeSeries tsc7a1 = new TimeSeries(time,value);
-						id = "a17";
-						tsc7a1.setId(id);
-						this.items.put(id,tsc7a1);
-						@SuppressWarnings("unused")
-						IExchangeItem c7a1 = new TimeSeries(tsc7a1);
-						
-						value[0] = values[53];
-						TimeSeries tsc7a2 = new TimeSeries(time,value);
-						id = "a27";
-						tsc7a2.setId(id);
-						this.items.put(id,tsc7a2);
-						@SuppressWarnings("unused")
-						IExchangeItem c7a2 = new TimeSeries(tsc7a2);
-						
-						value[0] = values[54];
-						TimeSeries tsc7a3 = new TimeSeries(time,value);
-						id = "a37";
-						tsc7a3.setId(id);
-						this.items.put(id,tsc7a3);
-						@SuppressWarnings("unused")
-						IExchangeItem c7a3 = new TimeSeries(tsc7a3);
-
-						value[0] = values[55];
-						TimeSeries tsc7Smax = new TimeSeries(time,value);
-						id = "Smax7";
-						tsc7Smax.setId(id);
-						this.items.put(id,tsc7Smax);
-						@SuppressWarnings("unused")
-						IExchangeItem c7Smax = new TimeSeries(tsc7Smax);
-						
-						// 6th subcatchment
-						value[0] = values[56];
-						TimeSeries tsc8Q = new TimeSeries(time,value);
-						id = "Q8";
-						tsc8Q.setId(id);
-						this.items.put(id,tsc8Q);
-						@SuppressWarnings("unused")
-						IExchangeItem c8Q = new TimeSeries(tsc8Q);
-						
-						value[0] = values[57];
-						TimeSeries tsc8S = new TimeSeries(time,value);
-						id = "S8";
-						tsc8S.setId(id);
-						this.items.put(id,tsc8S);
-						@SuppressWarnings("unused")
-						IExchangeItem c8S = new TimeSeries(tsc8S);
-						
-						value[0] = values[58];
-						TimeSeries tsc8G = new TimeSeries(time,value);
-						id = "G8";
-						tsc8G.setId(id);
-						this.items.put(id,tsc8G);
-						@SuppressWarnings("unused")
-						IExchangeItem c8G = new TimeSeries(tsc8G);
-						
-						value[0] = values[59];
-						TimeSeries tsc8ETact = new TimeSeries(time,value);
-						id = "ETact8";
-						tsc8ETact.setId(id);
-						this.items.put(id,tsc8ETact);
-						@SuppressWarnings("unused")
-						IExchangeItem c8ETact = new TimeSeries(tsc8ETact);
-						
-						value[0] = values[60];
-						TimeSeries tsc8a1 = new TimeSeries(time,value);
-						id = "a18";
-						tsc8a1.setId(id);
-						this.items.put(id,tsc8a1);
-						@SuppressWarnings("unused")
-						IExchangeItem c8a1 = new TimeSeries(tsc8a1);
-						
-						value[0] = values[61];
-						TimeSeries tsc8a2 = new TimeSeries(time,value);
-						id = "a28";
-						tsc8a2.setId(id);
-						this.items.put(id,tsc8a2);
-						@SuppressWarnings("unused")
-						IExchangeItem c8a2 = new TimeSeries(tsc8a2);
-						
-						value[0] = values[62];
-						TimeSeries tsc8a3 = new TimeSeries(time,value);
-						id = "a38";
-						tsc8a3.setId(id);
-						this.items.put(id,tsc8a3);
-						@SuppressWarnings("unused")
-						IExchangeItem c8a3 = new TimeSeries(tsc8a3);
-
-						value[0] = values[63];
-						TimeSeries tsc8Smax = new TimeSeries(time,value);
-						id = "Smax8";
-						tsc8Smax.setId(id);
-						this.items.put(id,tsc8Smax);
-						@SuppressWarnings("unused")
-						IExchangeItem c8Smax = new TimeSeries(tsc8Smax);
-			
-			
+			for (int i = 0; i<readDataDim[0]; i++) {
+				value[0] = values[i];
+				id = exchangeItemIDs[i];
+				temp = new TimeSeries(time,value);
+				temp.setId(id);
+				this.items.put(id,temp);
+				IExchangeItem x = new TimeSeries(temp);
+				map.put(id, x);
+			}
 		    
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -677,39 +183,55 @@ public class Ewrapper implements IoObjectInterface {
 	}
 
 	public void finish() {
-		// Updates initial states file.
-				double[] currentTimeCache = this.items.get("soilMoisture").getTimes();
-				double[] soilMoistureCache = this.items.get("soilMoisture").getValuesAsDoubles();
-				double[] gwStorageCache = this.items.get("gwStorage").getValuesAsDoubles();
+		
+		class Local {};
+        String methodName = Local.class.getEnclosingMethod().getName();
+        String className = this.getClass().getName();
+		
+		// Iterate over hash map items and store data in a double array.
+		double[] data = new double[readDataDim[0]*readDataDim[1]];
+		if (items.size() != readDataDim[0]) {
+			throw new RuntimeException(className + "." + methodName + ": Problem with the dimension of read data.");
+		}
+		for (int i = 0; i<items.size(); i++) {
+			IPrevExchangeItem ei = map.get(exchangeItemIDs[i]);
+			data[i] = ei.getValuesAsDoubles()[0];
+		}
+		// Store the same data in the same number of columns that has been read from E.mat.
+		for (int j=1; j<readDataDim[1]; j++) {
+			for (int i=0;i<readDataDim[0];i++) {
+				data[i+j*readDataDim[0]] = data[i];
+			}
+		}
+		
+		// Writing.
+		System.out.println(className + "." + methodName + ": Writing to file: "+
+                           this.workingDir + System.getProperty("line.separator") + this.fileName);
+		try{
+			File outputFile = new File(this.workingDir,this.fileName);
+			try{
+				if(outputFile.isFile()){
+					outputFile.delete();
+				}
+			}catch (Exception e) {
+				System.out.println(className + "." + methodName + ": trouble removing file "+ fileName);
+			}
+			try {
 				
-				//write to file
-				System.out.println("InitialStatesWrapper.finish(): Writing to file: "+this.workingDir+"/"+this.fileName);
-				File outputFile = new File(this.workingDir,this.fileName);
-				try{
-					if(outputFile.isFile()){
-						outputFile.delete();
-					}
-				}catch (Exception e) {
-					System.out.println("InitialStatesWrapper.finish(): trouble removing file "+ fileName);
-				}
-				try {
-					FileWriter writer = new FileWriter(outputFile);
-					BufferedWriter out = new BufferedWriter(writer);
-
-					/**
-					 * Write initial states values with noise from noise model propagated to the next time step.
-					 */
-					out.write("% currentTime = " + currentTimeCache[0] + ", finalTime = " + currentTimeCache[1] + System.getProperty("line.separator"));
-					out.write("soilMoisture = " + soilMoistureCache[1] + "; " + System.getProperty("line.separator"));
-					out.write("gwStorage = " + gwStorageCache[1] + "; " + System.getProperty("line.separator"));
-					
-					out.flush(); // Force java to write buffered stream to disk.
-					out.close();
-					writer.close();
-
-				} catch (Exception e) {
-					throw new RuntimeException("InitialStatesWrapper.finish(): Problem writing to file "+fileName+" : " + System.getProperty("line.separator") + e.getMessage());
-				}
+				MLDouble mlDouble = new MLDouble( "E", data, 64 ); // Store in 64 rows.
+		        ArrayList<MLArray> list = new ArrayList<MLArray>();
+		        list.add( mlDouble );
+		        
+		        new MatFileWriter( outputFile, list );
+				
+			} catch (Exception e) {
+				throw new RuntimeException(className + "." + methodName + ": Problem writing to file " + 
+						                   fileName+" : " + System.getProperty("line.separator") + e.getMessage());
+			}
+		}catch (Exception e) {
+			System.out.println(className + "." + methodName + ": Problem creating file.");
+		}
+		
 	}
 
 	
