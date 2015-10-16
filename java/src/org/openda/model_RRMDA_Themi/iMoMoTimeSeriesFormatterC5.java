@@ -5,21 +5,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.openda.exchange.timeseries.TimeSeries;
 import org.openda.exchange.timeseries.TimeSeriesFormatter;
-import org.openda.interfaces.IExchangeItem;
-
-import com.jmatio.io.MatFileReader;
-import com.jmatio.io.MatFileWriter;
-import com.jmatio.types.MLArray;
-import com.jmatio.types.MLChar;
-import com.jmatio.types.MLDouble;
-import com.jmatio.types.MLStructure;
+import org.openda.exchange.timeseries.TimeUtils;
 
 /**
  * Formatter that reads and writes time series from iMoMo.csv file. 
@@ -48,13 +40,15 @@ import com.jmatio.types.MLStructure;
  * points have been measured for a given sub-catchment at a given day
  * the last one is used for the data assimilation.
  * <p>
+ * This class can be used to read in the data for sub-catchment 1.
+ * <p>
  * @author Beatrice Marti, hydrosolutions ltd., marti@hydrosolutions.ch
  * <p>
  * copyright hydrosolutions ltd. 2015 <br>
  * license   see LICENSE
  *
  */
-public class iMoMoTimeSeriesFormatter extends TimeSeriesFormatter {
+public class iMoMoTimeSeriesFormatterC5 extends TimeSeriesFormatter {
 
 	// Local class iMoMoData to store the relevant stuff from iMoMo.csv.
 	private class iMoMoData{
@@ -64,7 +58,13 @@ public class iMoMoTimeSeriesFormatter extends TimeSeriesFormatter {
 		public double data_value;
 		public String date;
 		
-		// method to fill the data.
+		iMoMoData() {
+			this.variable_id = 0;
+			this.site_id = 0;
+			this.data_value = 0.0;
+			this.date = "";
+		}
+		
 		iMoMoData(int varialbeID, int siteID, double dataValue, String date){
 			this.variable_id = varialbeID;
 			this.site_id = siteID;
@@ -72,27 +72,51 @@ public class iMoMoTimeSeriesFormatter extends TimeSeriesFormatter {
 			this.date = date;
 		}
 		
+		public int getVariableID() {
+			return this.variable_id;
+		}
+		
+		public int getSiteID() {
+			return this.site_id;
+		}
+		
+		public double getValue() {
+			return this.data_value;
+		}
+		
+		/**
+		 * The date format of iMoMoData.date is 
+		 * yyyy-MM-dd HH:MM:SS,S
+		 * This needs to be transformed to the oda date string
+		 * yyyyMMddHHMM
+		 * 
+		 * @return double newDate
+		 */
+		public String iMoMoDate2odaDateString() {
+			
+			// Take year, month, and day 
+			String[] parts = this.date.split("-"); // yyyy, MM, dd HH:mm:SS.S
+			String modifiedDate = parts[0]+parts[1]; // yyyy + MM
+			
+			// Take hours and minutes.
+			String[] moreParts = parts[2].split(" "); // dd, HH:mm:SS.S
+			modifiedDate = modifiedDate+moreParts[0]; // dd
+			String[] evenMoreParts = moreParts[1].split(":"); // HH, mm, SS.S
+			modifiedDate = modifiedDate + evenMoreParts[0] + evenMoreParts[1]; // HH + mm
+			String[] finalParts = evenMoreParts[2].split("\\."); // SS, S
+			modifiedDate = modifiedDate + finalParts[0]; // SS
+			//System.out.println("modifiedDate : " + modifiedDate);
+			
+			return modifiedDate;
+		}
+		
 	}
 	
-	// 
+	
+	// Global fields. 
 	List<String> fileContent= new ArrayList<String>();
 	
-	private int getVariableID(iMoMoData imomodata) {
-		return imomodata.variable_id;
-	}
-	
-	private int getSiteID(iMoMoData imomodata) {
-		return imomodata.site_id;
-	}
-	
-	private double getValue(iMoMoData imomodata) {
-		return imomodata.data_value;
-	}
-	
-	private String getDate(iMoMoData imomodata) {
-		return imomodata.date;
-	}
-	
+	// Public methods.
 	@Override
 	public void write(OutputStream out, TimeSeries series) {
 		write(new PrintWriter(out), series);
@@ -119,8 +143,13 @@ public class iMoMoTimeSeriesFormatter extends TimeSeriesFormatter {
 	 */
 	public TimeSeries read(BufferedReader buff) {
 		
-		List<iMoMoData> iMoMoDataList = new ArrayList<iMoMoData>();
-		List<iMoMoData> dischargeData = new ArrayList<iMoMoData>();
+		List<iMoMoData> iMoMoDataList = new ArrayList<iMoMoData>(); 
+		List<iMoMoData> dischargeDataList = new ArrayList<iMoMoData>();
+		List<iMoMoData> subcatchmentDataList = new ArrayList<iMoMoData>();
+		
+		TimeSeries result = new TimeSeries(); // Initialize TimeSeries for return.
+		double[] value = new double[1];
+		double[] time = new double[1];
 		
 		// Read in the file.
 		boolean eof = false;
@@ -152,62 +181,69 @@ public class iMoMoTimeSeriesFormatter extends TimeSeriesFormatter {
 		}
 		
 		// Now browse through the map for discharge measurements.
-		
 		for (int i=0; i<iMoMoDataList.size(); i++) {
 			// Only need data from key starting with 25 which is discharge data. 
 			iMoMoData data = iMoMoDataList.get(i);
-			if (getVariableID(data) == 25) {
+			if (data.getVariableID() == 25) {
 				// Put them to a new list.
-				dischargeData.add(data);
-			}
-			// Only do the next step if the new list is not empty.
-			if (dischargeData.isEmpty()==false) {
-				// If we have more than one entry for discharge for a sub-catchment 
-				// we have to sort through the date and choose the last one. 
-				
+				dischargeDataList.add(data);
 			}			
 		}
 		
-		TimeSeries result = new TimeSeries();
+		// Only continue if there is discharge data.
+		if (dischargeDataList.isEmpty() == false) {
+			for (int i=0; i<dischargeDataList.size(); i++ ) {
+				iMoMoData data = dischargeDataList.get(i);
+				if (data.getSiteID() == 5) {
+					subcatchmentDataList.add(data);
+				}
+			}
+			// If there is data for the sub-catchment.
+			if (subcatchmentDataList.isEmpty() == false) {
+				// Check if there is more than one entry.
+				if (subcatchmentDataList.size() > 1) {
+					// Sort through the date and take the last one.
+					double timeTemp = 0.0;
+					double temp = 0.0;
+					double valueTemp = 0.0;
+					iMoMoData d = new iMoMoData();
+					for (int i=0; i<subcatchmentDataList.size(); i++) {
+						d = subcatchmentDataList.get(i);
+						try {
+							temp = TimeUtils.date2Mjd(d.iMoMoDate2odaDateString());
+						} catch (ParseException e) {
+							e.printStackTrace();
+						}
+						if (temp > timeTemp) {
+							timeTemp = temp;
+							valueTemp = d.getValue();
+						}
+					}
+					time[0] = timeTemp;
+					value[0] = valueTemp;
+					
+				} else {
+					// Take the value and add it to the time series.
+					iMoMoData d = subcatchmentDataList.get(0);
+					value[0] = d.getValue();
+					try {
+						time[0] = Double.valueOf(d.iMoMoDate2odaDateString());
+					} catch (Exception e) {
+						throw new RuntimeException("Problem reading time: time[0] = " + time[0]);
+					}
+				}
+				result.setData(time, value);
+				result.setLocation("subcatchment_5");
+			    result.setQuantity("mm");
+			    result.setSource("measured");
+			}
+		} else {
+			return result;
+		}
+		
 		return result;
 
 	}
-
-		
-	/*
-	 //array name
-        //file name in which array will be stored
-        String fileName = "mlstruct.mat";
-
-        //test column-packed vector
-        double[] src = new double[] { 1.3, 2.0, 3.0, 4.0, 5.0, 6.0 };
-        
-        //create 3x2 double matrix
-        //[ 1.0 4.0 ;
-        //  2.0 5.0 ;
-        //  3.0 6.0 ]
-        MLDouble mlDouble = new MLDouble( null, src, 3 );
-        MLChar mlChar = new MLChar( null, "I am dummy" );
-        
-        
-        MLStructure mlStruct = new MLStructure("str", new int[] {1,1} );
-        mlStruct.setField("f1", mlDouble);
-        mlStruct.setField("f2", mlChar);
-        
-        //write array to file
-        ArrayList<MLArray> list = new ArrayList<MLArray>();
-        list.add( mlStruct );
-        
-        //write arrays to file
-        new MatFileWriter( fileName, list );
-        
-        //read array form file
-        MatFileReader mfr = new MatFileReader( fileName );
-        MLStructure mlArrayRetrived = (MLStructure)mfr.getMLArray( "str" );
-        
-        assertEquals(mlDouble, mlArrayRetrived.getField("f1") );
-        assertEquals(mlChar, mlArrayRetrived.getField("f2") );
-        
-	 */
 	
 }
+
