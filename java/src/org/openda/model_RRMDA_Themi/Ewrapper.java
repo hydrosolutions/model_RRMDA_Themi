@@ -2,8 +2,6 @@ package org.openda.model_RRMDA_Themi;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -91,11 +89,11 @@ public class Ewrapper implements IoObjectInterface {
 		this.workingDir = workingDir;
 		this.fileName = fileName;
 		
-		double refdate = 0;
 		double[] values;
 		double[] time = new double[1];
 		double[] value = new double[1];
 		double[][] d;
+		double[][] timetemp;
 		String id;
 		
 		File file = new File(workingDir, fileName);
@@ -110,6 +108,7 @@ public class Ewrapper implements IoObjectInterface {
 			// Read the .mat file.
 			MatFileReader matfilereader = new MatFileReader( file );
 			MLArray readData = matfilereader.getMLArray("E");
+			MLArray readTime = matfilereader.getMLArray("startTime");
 			
 			// Parse the MLArray to an array of doubles. E contains an ensemble of states 
 			// and parameters. We're interested here only in the central model: The first column.
@@ -124,14 +123,6 @@ public class Ewrapper implements IoObjectInterface {
 			// Cast to MLDouble only after verifying that the type of readData is indeed a double array. 
 			d = ((MLDouble) readData).getArray(); 
 			
-			// Read the modified date from the file E.mat.
-			SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
-			try {
-				refdate = org.openda.exchange.timeseries.TimeUtils.date2Mjd(sdf.format(file.lastModified()),"yyyyMMdd");
-			} catch (ParseException e) {
-				e.printStackTrace();
-			}	
-			//System.out.println(sdf.format(file.lastModified()) + " , " + refdate);
 			
 			// Store the central model states and parameters in an array. 
 			values = new double[readDataDim[0]];
@@ -139,7 +130,8 @@ public class Ewrapper implements IoObjectInterface {
 				values[i] = d[i][0];
 			}
 			
-			time[0] = refdate;
+			timetemp = ((MLDouble) readTime).getArray();
+			time[0] = timetemp[0][0];
 			
 			TimeSeries temp;
 			// Store data in exchange items.
