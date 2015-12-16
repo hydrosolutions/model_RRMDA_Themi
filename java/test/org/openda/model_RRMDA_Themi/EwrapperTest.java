@@ -11,6 +11,7 @@ import org.openda.utils.OpenDaTestSupport;
 
 import com.jmatio.io.MatFileWriter;
 import com.jmatio.types.MLArray;
+import com.jmatio.types.MLChar;
 import com.jmatio.types.MLDouble;
 
 import junit.framework.TestCase;
@@ -42,8 +43,8 @@ public class EwrapperTest extends TestCase {
 			}
 		}
 		MLDouble mlDouble = new MLDouble( "E", E, 64 ); // Store test in 64 rows.
-		double[] startTime = {33002};
-        MLDouble mltime = new MLDouble("startTime",startTime,1);
+		String startTime = "201512061800";
+        MLChar mltime = new MLChar("startTime",startTime);
 		ArrayList<MLArray> list = new ArrayList<MLArray>();
         list.add( mlDouble );
         list.add(mltime);
@@ -64,7 +65,7 @@ public class EwrapperTest extends TestCase {
 	public void testInitialize() {
 		
 		// Expected values.
-		double[] expectedTime = {33002};
+		String expectedTime = "201512061800";
 		
 		int numberOfStates = 64;
 		int numberOfReplicates = 100;
@@ -107,8 +108,13 @@ public class EwrapperTest extends TestCase {
 				// Times and values.
 				double[] readTimes = readExchangeItem.getTimes();
 				double[] readValues = readExchangeItem.getValuesAsDoubles();
-				assertEquals(expectedTime.length,readTimes.length);
-				assertEquals(expectedTime[0],readTimes[0]);
+				double aa = 0;
+				try {
+					aa = org.openda.exchange.timeseries.TimeUtils.date2Mjd("201512061800");
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				assertEquals(aa,readTimes[0]);
 				
 				// Item is the index of the id.
 				assertEquals(readId +": ExpectedE[" + item + "] = " + expectedE[item] +",readValues[0] = " + readValues[0] + ".",

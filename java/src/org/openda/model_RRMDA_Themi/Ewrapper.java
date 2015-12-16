@@ -15,6 +15,7 @@ import org.openda.interfaces.IPrevExchangeItem;
 import com.jmatio.io.MatFileReader;
 import com.jmatio.io.MatFileWriter;
 import com.jmatio.types.MLArray;
+import com.jmatio.types.MLChar;
 import com.jmatio.types.MLDouble;
 
 /**
@@ -93,7 +94,6 @@ public class Ewrapper implements IoObjectInterface {
 		double[] time = new double[1];
 		double[] value = new double[1];
 		double[][] d;
-		double[][] timetemp;
 		String id;
 		
 		File file = new File(workingDir, fileName);
@@ -130,8 +130,12 @@ public class Ewrapper implements IoObjectInterface {
 				values[i] = d[i][0];
 			}
 			
-			timetemp = ((MLDouble) readTime).getArray();
-			time[0] = timetemp[0][0];
+			String timeString = ((MLChar)readTime).getString(0);
+			try {
+				time[0] = org.openda.exchange.timeseries.TimeUtils.date2Mjd(timeString);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 			
 			TimeSeries temp;
 			// Store data in exchange items.
