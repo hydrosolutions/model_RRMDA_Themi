@@ -8,13 +8,18 @@ import java.util.Set;
 
 import org.openda.blackbox.interfaces.IoObjectInterface;
 import org.openda.exchange.DoubleExchangeItem;
+import org.openda.exchange.timeseries.TimeUtils;
 import org.openda.interfaces.IExchangeItem;
 import org.openda.interfaces.IPrevExchangeItem;
+import org.openda.utils.Time;
+
+import visad.data.units.ParseException;
 
 import com.jmatio.io.MatFileReader;
 import com.jmatio.io.MatFileWriter;
 import com.jmatio.types.MLArray;
 import com.jmatio.types.MLDouble;
+import com.jmatio.types.MLChar;
 
 public class timeWrapper implements IoObjectInterface{
 
@@ -55,6 +60,8 @@ public class timeWrapper implements IoObjectInterface{
 		double endTime = 0;
 		double step = 0;
 		double[][] timetemp;
+		String startTimeString;
+		String endTimeString;
 			
 		File file = new File(workingDir, fileName);
 		if (!file.exists()) {
@@ -71,13 +78,21 @@ public class timeWrapper implements IoObjectInterface{
 			MLArray readEndTime = matfilereader.getMLArray("endTime");
 			MLArray readStep = matfilereader.getMLArray("step");
 				
-			// Parse the MLArray to an array of doubles. E contains an ensemble of states 
-			// and parameters. We're interested here only in the central model: The first column.
-				
-			timetemp = ((MLDouble) readStartTime).getArray();
-			startTime = timetemp[0][0];
-			timetemp = ((MLDouble) readEndTime).getArray();
-			endTime = timetemp[0][0];
+			// Parse the MLArrays.
+			startTimeString = ((MLChar)readStartTime).getString(0);
+			try {
+				startTime = org.openda.exchange.timeseries.TimeUtils.date2Mjd(startTimeString);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+            endTimeString = ((MLChar)readEndTime).getString(0);
+            try {
+            	endTime = org.openda.exchange.timeseries.TimeUtils.date2Mjd(endTimeString);
+            } catch (Exception e) {
+            	e.printStackTrace();
+            }
+			
 			timetemp = ((MLDouble) readStep).getArray();
 			step = timetemp[0][0];
 				
@@ -144,9 +159,10 @@ public class timeWrapper implements IoObjectInterface{
 				System.out.println(className + "." + methodName + ": trouble removing file "+ fileName);
 			}
 			try {
-				
-				MLDouble mlstart = new MLDouble( "startTime", startTime, 1 ); // Store in 1 row.
-				MLDouble mlend = new MLDouble("endTime",endTime,1);
+				String startTimeString = org.openda.exchange.timeseries.TimeUtils.mjdToString(startTime[0]);
+				String endTimeString = org.openda.exchange.timeseries.TimeUtils.mjdToString(endTime[0]);
+				MLChar mlstart = new MLChar("startTime",startTimeString); // Store in 1 row.
+				MLChar mlend = new MLChar("endTime",endTimeString);
 				MLDouble mlstep = new MLDouble("step",step,1);
 		        ArrayList<MLArray> list = new ArrayList<MLArray>();
 		        list.add( mlstart );
